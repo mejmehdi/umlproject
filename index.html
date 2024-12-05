@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UML Diagram - Relations</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin: 0;
+            padding: 20px;
+            height: 100vh;
+        }
+
+        canvas {
+            border: 1px solid black;
+            margin-top: 20px;
+        }
+
+        #toolbar {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        button {
+            padding: 10px 20px;
+            font-size: 14px;
+            cursor: pointer;
+        }
+
+        #toolbar button:active {
+            background-color: lightgray;
+        }
+    </style>
+</head>
+<body>
+    <h1>UML Diagram - Relations</h1>
+    <div id="toolbar">
+        <button onclick="addClass()">Add Class</button>
+        <button onclick="addAttribute()">Add Attribute</button>
+        <button onclick="addMethod()">Add Method</button>
+        <button onclick="addRelation()">Add Relation</button>
+        <button onclick="exportToJava()">Export to Java</button>
+    </div>
+
+    <canvas id="umlCanvas" width="800" height="600"></canvas>
+
+    <script>
+        const canvas = document.getElementById("umlCanvas");
+        const ctx = canvas.getContext("2d");
+
+        let elements = [];
+        let relationships = [];
+        let isDragging = false;
+        let draggedElement = null;
+        let offsetX = 0;
+        let offsetY = 0;
+
+        class UMLClass {
+            constructor(x, y, name) {
+                this.x = x;
+                this.y = y;
+                this.width = 200;
+                this.baseHeight = 60;
+                this.name = name;
+                this.attributes = [];
+                this.methods = [];
+            }
+
+            get height() {
+                return (
+                    this.baseHeight +
+                    Math.max(this.attributes.length * 20, 30) +
+                    Math.max(this.methods.length * 20, 30)
+                );
+            }
+
+            draw() {
+                ctx.fillStyle = "lightblue";
+                ctx.fillRect(this.x, this.y, this.width, this.height);
+
+                ctx.strokeStyle = "black";
+                ctx.strokeRect(this.x, this.y, this.width, this.height);
+
+                ctx.fillStyle = "black";
+                ctx.font = "16px Arial";
+                ctx.textAlign = "center";
+                ctx.fillText(this.name, this.x + this.width / 2, this.y + 20);
+
+                ctx.beginPath();
+                ctx.moveTo(this.x, this.y + 30);
+                ctx.lineTo(this.x + this.width, this.y + 30);
+                ctx.stroke();
+
+                const attributeStartY = this.y + 30;
+                const methodStartY = attributeStartY + Math.max(this.attributes.length * 20, 30);
+
+                ctx.beginPath();
+                ctx.moveTo(this.x, methodStartY);
+                ctx.lineTo(this.x + this.width, methodStartY);
+                ctx.stroke();
+
+                ctx.textAlign = "left";
+                this.attributes.forEach((attr, index) => {
+                    ctx.fillText(attr, this.x + 10, attributeStartY + 20 + index * 20);
+                });
+
+                this.methods.forEach((method, index) => {
+                    ctx.fillText(method, this.x + 10, methodStartY + 20 + index * 20);
+                });
+            }
+
+            contains(x, y) {
+                return x > this.x && x < this.x + this.width && y > this.y && y < this.y + this.height;
+            }
+        }
+
+        class Relation {
+            constructor(from, to, type) {
+                this.from = from;
+                this.to = to;
+                this.type = type;
+            }
+
+            draw() {
+                const startX = this.from.x + this.from.width / 2;
+                const startY = this.from.y + this.from.height / 2;
+                const endX = this.to.x + this.to.width / 2;
+                const endY = this.to.y + this.to.height / 2;
+
+                ctx.beginPath();
+                ctx.moveTo(startX, startY);
+                ctx.lineTo(endX, endY);
+                ctx.stroke();
+            }
+        }
+
+        function addClass() {
+            const className = prompt("Class Name:");
+            if (className) {
+                const newClass = new UMLClass(100, 100, className);
+                elements.push(newClass);
+                render();
+            }
+        }
+
+        function addAttribute() {
+            const selectedClass = selectClass("Select the class to add an attribute");
+            if (selectedClass) {
+                const encapsulation = prompt("Encapsulation (+, -, #):");
+                const type = prompt("Type (int, string, etc.):");
+                const attrName = prompt("Attribute Name:");
+                if (encapsulation && type && attrName) {
+                    const attribute = `${encapsulation} ${attrName}: ${type}`;
+                    selectedClass.attributes.push(attribute);
+                    render();
+                }
+            }
+        }
+
+        function addMethod() {
+            const selectedClass = selectClass("Select the class to add a method");
+            if (selectedClass) {
+                const encapsulation = prompt("Encapsulation (+, -, #):");
+                const returnType = prompt("Return Type:");
+                const methodName = prompt("Method Name:");
+                const parameters = prompt("Parameters (e.g., name: string, age: int):");
+                if (encapsulation && returnType && methodName) {
+                    const method = `${encapsulation} ${methodName}(${parameters || ""}): ${returnType}`;
+                    selectedClass.methods.push(method);
+                    render();
+                }
+            }
+        }
+
+        function addRelation() {
+            const fromClass = selectClass("Select the starting class for the relation");
+            const toClass = selectClass("Select the ending class for the relation");
+            if (fromClass && toClass) {
+                const relationType = getRelationType();
+                if (relationType) {
+                    const relation = new Relation(fromClass, toClass, relationType);
+                    relationships.push(relation);
+                    render();
+                }
+            }
+        }
+
+        function getRelationType() {
+            const relationTypes = ["aggregation", "association", "heritage", "composition", "reflexive"];
+            const relationType = prompt(`Select relation type: \n1. aggregation \n2. association \n3. heritage \n4. composition \n5. reflexive`);
+            if (relationType && relationTypes[relationType - 1]) {
+                return relationTypes[relationType - 1];
+            } else {
+                alert("Invalid selection. Please try again.");
+                return null;
+            }
+        }
+
+        function selectClass(message) {
+            const className = prompt(message);
+            return elements.find((el) => el.name === className);
+        }
+
+        function render() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            relationships.forEach((relation) => relation.draw());
+            elements.forEach((element) => element.draw());
+        }
+
+        function exportToJava() {
+            let code = "";
+
+            elements.forEach((umlClass) => {
+                code += `public class ${umlClass.name} {\n`;
+
+                // Export attributes
+                umlClass.attributes.forEach((attr) => {
+                    const [encapsulation, rest] = attr.split(" ");
+                    const [name, type] = rest.split(":");
+                    const accessModifier = encapsulation === "+" ? "public" : encapsulation === "-" ? "private" : "protected";
+                    code += `    ${accessModifier} ${type.trim()} ${name.trim()};\n`;
+                });
+
+                // Export methods
+                umlClass.methods.forEach((method) => {
+                    const [encapsulation, rest] = method.split(" ");
+                    const [signature, returnType] = rest.split(":");
+                    const [methodName, params] = signature.split("(");
+                    const accessModifier = encapsulation === "+" ? "public" : encapsulation === "-" ? "private" : "protected";
+                    code += `    ${accessModifier} ${returnType.trim()} ${methodName.trim()}(${params.trim() || ""}) {\n        // TODO: Implement this method\n    }\n`;
+                });
+
+                code += "}\n\n";
+            });
+
+            // Export relationships (add them as comments or methods to represent associations)
+            relationships.forEach((relation) => {
+                code += `// Relationship between ${relation.from.name} and ${relation.to.name} (Type: ${relation.type})\n`;
+                // Optionally, you could represent relations as methods or other structures.
+                // Example: Aggregation might be represented as a method or field of one class referencing the other.
+            });
+
+            const blob = new Blob([code], { type: "text/plain" });
+            const link = document.createElement("a");
+            link.download = "UMLDiagram.java";
+            link.href = URL.createObjectURL(blob);
+            link.click();
+        }
+
+        canvas.addEventListener("mousedown", (e) => {
+            const x = e.offsetX;
+            const y = e.offsetY;
+            const clickedElement = elements.find((el) => el.contains(x, y));
+            if (clickedElement) {
+                isDragging = true;
+                draggedElement = clickedElement;
+                offsetX = x - draggedElement.x;
+                offsetY = y - draggedElement.y;
+            }
+        });
+
+        canvas.addEventListener("mousemove", (e) => {
+            if (isDragging && draggedElement) {
+                const x = e.offsetX;
+                const y = e.offsetY;
+                draggedElement.x = x - offsetX;
+                draggedElement.y = y - offsetY;
+                render();
+            }
+        });
+
+        canvas.addEventListener("mouseup", () => {
+            isDragging = false;
+            draggedElement = null;
+        });
+
+        render();
+    </script>
+</body>
+</html>
